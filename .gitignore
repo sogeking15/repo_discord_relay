@@ -141,3 +141,13 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Unity package (unity-package/ is source-only, not a full Unity project,
+# but ignore local editor cruft in case someone opens it directly)
+*.csproj
+*.sln
+.vs/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,7 @@
+{
+  "name": "com.sogeking15.discord-relay-kit",
+  "version": "0.1.0",
+  "displayName": "Discord Relay Kit",
+  "description": "Async Discord messaging for Unity games: send a message to a player and get notified when they reply, even if their game is closed.",
+  "unity": "6000.0"
+}
