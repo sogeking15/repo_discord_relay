@@ -19,7 +19,7 @@ ws.on("message", (raw) => {
   console.log("<-", data);
 
   if (data.type === "identified" && toPlayerId && message) {
-    ws.send(JSON.stringify({ type: "message.send", toPlayerId, payload: { text: message } }));
+    ws.send(JSON.stringify({ type: "message.send", toPlayerId, kind: "text", payload: { text: message } }));
   }
 
   if (data.type === "message.deliver") {

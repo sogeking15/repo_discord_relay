@@ -45,6 +45,7 @@ function attachRelay(httpServer) {
           const msg = {
             messageId: randomUUID(),
             fromPlayerId: ws.playerId,
+            kind: data.kind,
             payload: data.payload,
             ts: Date.now(),
           };
