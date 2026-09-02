@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using UnityEngine;
 
 namespace DiscordRelayKit
 {
@@ -15,12 +16,17 @@ namespace DiscordRelayKit
         readonly RelayRunner runner;
         ClientWebSocket ws;
         CancellationTokenSource cts;
+        volatile bool identified;
 
         public event Action<RelayMessage> OnMessage;
         public event Action OnOpen;
         public event Action<string> OnClose;
 
-        public bool IsOpen => ws != null && ws.State == WebSocketState.Open;
+        // Gated on the identify handshake completing, not just the raw socket -
+        // ws.State flips to Open as soon as the WS handshake finishes, which is
+        // before "identify" has even been sent, let alone acknowledged. A caller
+        // sending on IsOpen alone can race ahead of identify and get rejected.
+        public bool IsOpen => identified && ws != null && ws.State == WebSocketState.Open;
 
         public RelaySocket(string url, string playerId, RelayRunner runner)
         {
@@ -78,6 +84,7 @@ namespace DiscordRelayKit
             switch ((string)data["type"])
             {
                 case "identified":
+                    identified = true;
                     runner.MainThreadActions.Enqueue(() => OnOpen?.Invoke());
                     break;
 
@@ -92,6 +99,11 @@ namespace DiscordRelayKit
                     };
                     _ = SendRaw(new JObject { ["type"] = "message.ack", ["messageId"] = msg.MessageId });
                     runner.MainThreadActions.Enqueue(() => OnMessage?.Invoke(msg));
+                    break;
+
+                case "error":
+                    var errorText = (string)data["message"];
+                    runner.MainThreadActions.Enqueue(() => Debug.LogWarning($"DiscordRelayKit: relay server error - {errorText}"));
                     break;
             }
         }
