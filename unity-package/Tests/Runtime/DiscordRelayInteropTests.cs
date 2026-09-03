@@ -74,6 +74,13 @@ namespace DiscordRelayKit.Tests
             DiscordRelay.Disconnect();
         }
 
+        [Test]
+        public void LanIPAddressLooksValid()
+        {
+            var ip = LocalNetwork.GetLanIPAddress();
+            Assert.IsTrue(System.Net.IPAddress.TryParse(ip, out _), $"'{ip}' is not a valid IP address");
+        }
+
         [UnityTest]
         public IEnumerator UnityClientReceivesMessageFromExternalPeer()
         {

@@ -1,19 +1,30 @@
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace DiscordRelayKit.Editor
 {
     public class RelaySetupWindow : EditorWindow
     {
         const string NodeProjectPathKey = "DiscordRelayKit.NodeProjectPath";
+        const double HealthPollIntervalSeconds = 2.0;
 
         string nodeProjectPath = "";
         string botToken = "";
         string port = "8080";
         bool projectFound;
+
+        bool serverRunning;
+        bool healthCheckInFlight;
+        double lastHealthCheck;
+        string lanIp = "";
 
         [MenuItem("Tools/Discord Relay Kit/Setup")]
         public static void Open()
@@ -25,6 +36,40 @@ namespace DiscordRelayKit.Editor
         {
             nodeProjectPath = EditorUserSettings.GetConfigValue(NodeProjectPathKey) ?? "";
             RefreshFromDisk();
+            lanIp = LocalNetwork.GetLanIPAddress();
+            EditorApplication.update += PollHealth;
+        }
+
+        void OnDisable()
+        {
+            EditorApplication.update -= PollHealth;
+        }
+
+        void PollHealth()
+        {
+            if (healthCheckInFlight) return;
+            if (EditorApplication.timeSinceStartup - lastHealthCheck < HealthPollIntervalSeconds) return;
+            lastHealthCheck = EditorApplication.timeSinceStartup;
+            healthCheckInFlight = true;
+            _ = CheckHealthAsync();
+        }
+
+        async Task CheckHealthAsync()
+        {
+            var running = false;
+            try
+            {
+                using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(800) };
+                var response = await client.GetAsync($"http://localhost:{port}/health");
+                running = response.IsSuccessStatusCode;
+            }
+            catch
+            {
+                running = false;
+            }
+            serverRunning = running;
+            healthCheckInFlight = false;
+            Repaint();
         }
 
         void RefreshFromDisk()
@@ -80,6 +125,82 @@ namespace DiscordRelayKit.Editor
                 {
                     SaveToEnv();
                 }
+            }
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Local server", EditorStyles.boldLabel);
+
+            var statusColor = GUI.color;
+            GUI.color = serverRunning ? Color.green : Color.red;
+            EditorGUILayout.LabelField(serverRunning ? "● Running" : "● Stopped");
+            GUI.color = statusColor;
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("LAN IP", lanIp);
+            if (GUILayout.Button("Copy", GUILayout.Width(60)))
+            {
+                EditorGUIUtility.systemCopyBuffer = lanIp;
+            }
+            if (GUILayout.Button("Refresh", GUILayout.Width(60)))
+            {
+                lanIp = LocalNetwork.GetLanIPAddress();
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            using (new EditorGUI.DisabledScope(!projectFound || serverRunning))
+            {
+                if (GUILayout.Button("Start")) StartServer();
+            }
+            using (new EditorGUI.DisabledScope(!serverRunning))
+            {
+                if (GUILayout.Button("Stop")) StopServer();
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        void StartServer()
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "node",
+                Arguments = "src/server.js",
+                WorkingDirectory = nodeProjectPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            startInfo.EnvironmentVariables["PORT"] = port;
+
+            var process = new Process { StartInfo = startInfo };
+            process.OutputDataReceived += (_, e) => { if (e.Data != null) Debug.Log($"[relay] {e.Data}"); };
+            process.ErrorDataReceived += (_, e) => { if (e.Data != null) Debug.LogWarning($"[relay] {e.Data}"); };
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            // Deliberately not held onto beyond this call - the process is meant
+            // to outlive the editor (and survive domain reloads), so Stop works
+            // via /shutdown instead of a held Process handle. Log streaming above
+            // only lasts until the next recompile, when this subscription is lost.
+        }
+
+        void StopServer()
+        {
+            _ = StopServerAsync();
+        }
+
+        async Task StopServerAsync()
+        {
+            try
+            {
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+                await client.PostAsync($"http://localhost:{port}/shutdown", null);
+            }
+            catch
+            {
+                // server may already be down
             }
         }
 
