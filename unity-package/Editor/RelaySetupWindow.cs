@@ -19,6 +19,10 @@ namespace DiscordRelayKit.Editor
         string nodeProjectPath = "";
         string botToken = "";
         string port = "8080";
+        string clientId = "";
+        string clientSecret = "";
+        string redirectUri = "";
+        string guildId = "";
         bool projectFound;
 
         bool serverRunning;
@@ -37,6 +41,8 @@ namespace DiscordRelayKit.Editor
             nodeProjectPath = EditorUserSettings.GetConfigValue(NodeProjectPathKey) ?? "";
             RefreshFromDisk();
             lanIp = LocalNetwork.GetLanIPAddress();
+            healthCheckInFlight = true;
+            _ = CheckHealthAsync();
             EditorApplication.update += PollHealth;
         }
 
@@ -83,6 +89,12 @@ namespace DiscordRelayKit.Editor
             var values = ParseEnv(envPath);
             if (values.TryGetValue("DISCORD_BOT_TOKEN", out var token)) botToken = token;
             if (values.TryGetValue("PORT", out var configuredPort)) port = configuredPort;
+            if (values.TryGetValue("DISCORD_CLIENT_ID", out var id)) clientId = id;
+            if (values.TryGetValue("DISCORD_CLIENT_SECRET", out var secret)) clientSecret = secret;
+            if (values.TryGetValue("DISCORD_GUILD_ID", out var guild)) guildId = guild;
+            redirectUri = values.TryGetValue("DISCORD_REDIRECT_URI", out var uri) && !string.IsNullOrEmpty(uri)
+                ? uri
+                : $"http://localhost:{port}/link/callback";
         }
 
         void OnGUI()
@@ -117,6 +129,14 @@ namespace DiscordRelayKit.Editor
             EditorGUILayout.LabelField("Discord bot", EditorStyles.boldLabel);
             botToken = EditorGUILayout.PasswordField("Bot token", botToken);
             port = EditorGUILayout.TextField("Port", port);
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Discord OAuth2 (account linking)", EditorStyles.boldLabel);
+            clientId = EditorGUILayout.TextField("Client ID", clientId);
+            clientSecret = EditorGUILayout.PasswordField("Client secret", clientSecret);
+            redirectUri = EditorGUILayout.TextField("Redirect URI", redirectUri);
+            EditorGUILayout.HelpBox("Register this exact Redirect URI in the portal's OAuth2 tab.", MessageType.None);
+            guildId = EditorGUILayout.TextField("Guild ID", guildId);
 
             EditorGUILayout.Space();
             using (new EditorGUI.DisabledScope(!projectFound))
@@ -176,7 +196,17 @@ namespace DiscordRelayKit.Editor
             var process = new Process { StartInfo = startInfo };
             process.OutputDataReceived += (_, e) => { if (e.Data != null) Debug.Log($"[relay] {e.Data}"); };
             process.ErrorDataReceived += (_, e) => { if (e.Data != null) Debug.LogWarning($"[relay] {e.Data}"); };
-            process.Start();
+
+            try
+            {
+                process.Start();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Discord Relay Kit: failed to start the server - {e.Message}. Is node.js on PATH, and is port {port} already in use by something else?");
+                return;
+            }
+
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
@@ -219,6 +249,10 @@ namespace DiscordRelayKit.Editor
 
             SetKey(lines, "DISCORD_BOT_TOKEN", botToken);
             SetKey(lines, "PORT", port);
+            SetKey(lines, "DISCORD_CLIENT_ID", clientId);
+            SetKey(lines, "DISCORD_CLIENT_SECRET", clientSecret);
+            SetKey(lines, "DISCORD_REDIRECT_URI", redirectUri);
+            SetKey(lines, "DISCORD_GUILD_ID", guildId);
 
             File.WriteAllLines(envPath, lines);
             Debug.Log($"Discord Relay Kit: wrote {envPath}");
