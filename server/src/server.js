@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const { attachRelay } = require("./relay");
+const { createDiscordBridge } = require("./discordBridge");
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -25,3 +26,12 @@ attachRelay(server);
 server.listen(port, "0.0.0.0", () => {
   console.log(`relay server listening on :${port}`);
 });
+
+if (process.env.DISCORD_BOT_TOKEN) {
+  const bridge = createDiscordBridge(process.env.DISCORD_BOT_TOKEN);
+  bridge.ready
+    .then((user) => console.log(`discord bot logged in as ${user.tag}`))
+    .catch((err) => console.error("discord bot failed to log in:", err.message));
+} else {
+  console.log("DISCORD_BOT_TOKEN not set, skipping Discord bot startup");
+}
