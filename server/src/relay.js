@@ -35,6 +35,7 @@ async function notifyViaDiscordIfOffline(toPlayerId, msg) {
 
   try {
     await discordBridge.sendDM(discordUserId, text);
+    console.log(`[relay] notified ${toPlayerId} via DM (offline)`);
   } catch (err) {
     console.warn(`[relay] could not DM ${toPlayerId} (${discordUserId}):`, err.message);
   }
