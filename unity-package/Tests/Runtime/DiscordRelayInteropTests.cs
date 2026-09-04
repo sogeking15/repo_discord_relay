@@ -81,6 +81,34 @@ namespace DiscordRelayKit.Tests
             Assert.IsTrue(System.Net.IPAddress.TryParse(ip, out _), $"'{ip}' is not a valid IP address");
         }
 
+        [Test]
+        public void RequestLinkThrowsIfNotConnected()
+        {
+            Assert.Throws<InvalidOperationException>(() => DiscordRelay.RequestLink(null));
+        }
+
+        [UnityTest]
+        public IEnumerator RequestLinkReturnsADiscordAuthorizeUrl()
+        {
+            yield return WaitForServerHealthy();
+
+            DiscordRelay.Connect(BaseUrl, "link-test-player");
+            yield return WaitUntilOrFail(() => DiscordRelay.IsConnected, 5f, "Unity client never connected");
+
+            string receivedUrl = null;
+            string receivedError = null;
+            DiscordRelay.RequestLink(
+                url => receivedUrl = url,
+                err => receivedError = err
+            );
+
+            yield return WaitUntilOrFail(() => receivedUrl != null || receivedError != null, 5f, "RequestLink never completed");
+
+            Assert.IsNull(receivedError, $"RequestLink reported an error: {receivedError}");
+            StringAssert.StartsWith("https://discord.com/api/oauth2/authorize", receivedUrl);
+            StringAssert.Contains("state=", receivedUrl);
+        }
+
         [UnityTest]
         public IEnumerator UnityClientReceivesMessageFromExternalPeer()
         {
