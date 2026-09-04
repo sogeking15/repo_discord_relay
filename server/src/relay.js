@@ -1,23 +1,42 @@
 const { WebSocketServer } = require("ws");
 const { randomUUID } = require("crypto");
 
+const connections = new Map(); // playerId -> ws
+const queues = new Map(); // playerId -> pending message[]
+
+function send(ws, data) {
+  ws.send(JSON.stringify(data));
+}
+
+function flushQueue(playerId, ws) {
+  const pending = queues.get(playerId);
+  if (!pending) return;
+  for (const msg of pending) {
+    send(ws, { type: "message.deliver", ...msg });
+  }
+}
+
+function deliverToPlayer(toPlayerId, fromPlayerId, kind, payload) {
+  const msg = {
+    messageId: randomUUID(),
+    fromPlayerId,
+    kind,
+    payload,
+    ts: Date.now(),
+  };
+
+  if (!queues.has(toPlayerId)) queues.set(toPlayerId, []);
+  queues.get(toPlayerId).push(msg);
+
+  const target = connections.get(toPlayerId);
+  if (target && target.readyState === target.OPEN) {
+    send(target, { type: "message.deliver", ...msg });
+  }
+  return msg;
+}
+
 function attachRelay(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: "/relay" });
-
-  const connections = new Map(); // playerId -> ws
-  const queues = new Map(); // playerId -> pending message[]
-
-  function send(ws, data) {
-    ws.send(JSON.stringify(data));
-  }
-
-  function flushQueue(playerId, ws) {
-    const pending = queues.get(playerId);
-    if (!pending) return;
-    for (const msg of pending) {
-      send(ws, { type: "message.deliver", ...msg });
-    }
-  }
 
   wss.on("connection", (ws) => {
     ws.on("message", (raw) => {
@@ -41,22 +60,7 @@ function attachRelay(httpServer) {
         case "message.send": {
           if (!ws.playerId) return send(ws, { type: "error", message: "identify first" });
           if (!data.toPlayerId) return send(ws, { type: "error", message: "toPlayerId required" });
-
-          const msg = {
-            messageId: randomUUID(),
-            fromPlayerId: ws.playerId,
-            kind: data.kind,
-            payload: data.payload,
-            ts: Date.now(),
-          };
-
-          if (!queues.has(data.toPlayerId)) queues.set(data.toPlayerId, []);
-          queues.get(data.toPlayerId).push(msg);
-
-          const target = connections.get(data.toPlayerId);
-          if (target && target.readyState === target.OPEN) {
-            send(target, { type: "message.deliver", ...msg });
-          }
+          deliverToPlayer(data.toPlayerId, ws.playerId, data.kind, data.payload);
           break;
         }
 
@@ -86,4 +90,4 @@ function attachRelay(httpServer) {
   return wss;
 }
 
-module.exports = { attachRelay };
+module.exports = { attachRelay, deliverToPlayer };

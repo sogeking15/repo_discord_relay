@@ -8,9 +8,19 @@ function createDiscordBridge(token) {
     client.once("error", reject);
   });
 
+  client.once("clientReady", () => {
+    console.log(`bot is a member of ${client.guilds.cache.size} guild(s)`);
+  });
+
   client.login(token);
 
-  return { client, ready };
+  async function sendDM(discordUserId, message) {
+    const user = await client.users.fetch(discordUserId);
+    const channel = await user.createDM();
+    await channel.send(message);
+  }
+
+  return { client, ready, sendDM };
 }
 
 module.exports = { createDiscordBridge };
