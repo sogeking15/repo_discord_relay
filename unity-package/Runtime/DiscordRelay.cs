@@ -1,4 +1,5 @@
 using System;
+using Newtonsoft.Json.Linq;
 
 namespace DiscordRelayKit
 {
@@ -7,6 +8,7 @@ namespace DiscordRelayKit
         public static event Action Connected;
         public static event Action<string> Disconnected;
         public static event Action<RelayMessage> OnMessageReceived;
+        public static event Action<string> OnLinked;
 
         static RelaySocket socket;
         static RelayRunner runner;
@@ -21,7 +23,7 @@ namespace DiscordRelayKit
             socket = new RelaySocket(NormalizeUrl(baseUrl), playerId, runner);
             socket.OnOpen += () => Connected?.Invoke();
             socket.OnClose += reason => Disconnected?.Invoke(reason);
-            socket.OnMessage += msg => OnMessageReceived?.Invoke(msg);
+            socket.OnMessage += HandleMessage;
             socket.Connect();
         }
 
@@ -30,6 +32,40 @@ namespace DiscordRelayKit
             if (socket == null)
                 throw new InvalidOperationException("DiscordRelay.Connect() must be called before Send().");
             socket.SendMessage(toPlayerId, kind, payloadJson);
+        }
+
+        // Returns a Discord OAuth2 URL for the caller to open (e.g. Application.OpenURL) -
+        // the kit doesn't decide how that's presented. OnLinked fires once the player
+        // completes it in their browser; no code to type, no server to join manually.
+        public static void RequestLink(Action<string> onAuthUrlReceived, Action<string> onError = null)
+        {
+            if (socket == null)
+                throw new InvalidOperationException("DiscordRelay.Connect() must be called before RequestLink().");
+            socket.RequestLink(onAuthUrlReceived, onError);
+        }
+
+        static void HandleMessage(RelayMessage msg)
+        {
+            if (msg.Kind == "link.complete")
+            {
+                OnLinked?.Invoke(ExtractDiscordUserId(msg.Payload));
+            }
+            else
+            {
+                OnMessageReceived?.Invoke(msg);
+            }
+        }
+
+        static string ExtractDiscordUserId(string payloadJson)
+        {
+            try
+            {
+                return (string)JObject.Parse(payloadJson)["discordUserId"];
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public static void Disconnect()

@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const http = require("http");
-const { attachRelay, deliverToPlayer } = require("./relay");
+const { attachRelay, deliverToPlayer, setDiscordBridge } = require("./relay");
 const { createDiscordBridge } = require("./discordBridge");
 const discordOAuth = require("./discordOAuth");
 
@@ -65,6 +65,7 @@ server.listen(port, "0.0.0.0", () => {
 
 if (process.env.DISCORD_BOT_TOKEN) {
   bridge = createDiscordBridge(process.env.DISCORD_BOT_TOKEN);
+  setDiscordBridge(bridge);
   bridge.ready
     .then((user) => console.log(`discord bot logged in as ${user.tag}`))
     .catch((err) => console.error("discord bot failed to log in:", err.message));

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -118,6 +119,34 @@ namespace DiscordRelayKit
                 ["kind"] = kind,
                 ["payload"] = payload,
             });
+        }
+
+        public async void RequestLink(Action<string> onAuthUrlReceived, Action<string> onError)
+        {
+            try
+            {
+                var httpBase = url.Replace("ws://", "http://");
+                httpBase = httpBase.Substring(0, httpBase.Length - "/relay".Length);
+
+                using var client = new HttpClient();
+                var response = await client.GetAsync($"{httpBase}/link/start?playerId={Uri.EscapeDataString(playerId)}");
+                var text = await response.Content.ReadAsStringAsync();
+                var json = JObject.Parse(text);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errMsg = (string)json["error"] ?? $"link/start failed ({(int)response.StatusCode})";
+                    runner.MainThreadActions.Enqueue(() => onError?.Invoke(errMsg));
+                    return;
+                }
+
+                var authUrl = (string)json["authUrl"];
+                runner.MainThreadActions.Enqueue(() => onAuthUrlReceived?.Invoke(authUrl));
+            }
+            catch (Exception e)
+            {
+                runner.MainThreadActions.Enqueue(() => onError?.Invoke(e.Message));
+            }
         }
 
         async Task SendRaw(JObject obj)
