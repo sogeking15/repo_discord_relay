@@ -121,15 +121,18 @@ namespace DiscordRelayKit
             });
         }
 
+        string HttpBase()
+        {
+            var httpUrl = url.Replace("ws://", "http://");
+            return httpUrl.Substring(0, httpUrl.Length - "/relay".Length);
+        }
+
         public async void RequestLink(Action<string> onAuthUrlReceived, Action<string> onError)
         {
             try
             {
-                var httpBase = url.Replace("ws://", "http://");
-                httpBase = httpBase.Substring(0, httpBase.Length - "/relay".Length);
-
                 using var client = new HttpClient();
-                var response = await client.GetAsync($"{httpBase}/link/start?playerId={Uri.EscapeDataString(playerId)}");
+                var response = await client.GetAsync($"{HttpBase()}/link/start?playerId={Uri.EscapeDataString(playerId)}");
                 var text = await response.Content.ReadAsStringAsync();
                 var json = JObject.Parse(text);
 
@@ -142,6 +145,41 @@ namespace DiscordRelayKit
 
                 var authUrl = (string)json["authUrl"];
                 runner.MainThreadActions.Enqueue(() => onAuthUrlReceived?.Invoke(authUrl));
+            }
+            catch (Exception e)
+            {
+                runner.MainThreadActions.Enqueue(() => onError?.Invoke(e.Message));
+            }
+        }
+
+        public async void GetLinkedPlayers(Action<LinkedPlayer[]> onResult, Action<string> onError)
+        {
+            try
+            {
+                using var client = new HttpClient();
+                var response = await client.GetAsync($"{HttpBase()}/players/linked");
+                var text = await response.Content.ReadAsStringAsync();
+                var json = JObject.Parse(text);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errMsg = (string)json["error"] ?? $"players/linked failed ({(int)response.StatusCode})";
+                    runner.MainThreadActions.Enqueue(() => onError?.Invoke(errMsg));
+                    return;
+                }
+
+                var players = new System.Collections.Generic.List<LinkedPlayer>();
+                foreach (var p in (JArray)json["players"])
+                {
+                    players.Add(new LinkedPlayer
+                    {
+                        PlayerId = (string)p["playerId"],
+                        DiscordUserId = (string)p["discordUserId"],
+                        Username = (string)p["username"],
+                    });
+                }
+
+                runner.MainThreadActions.Enqueue(() => onResult?.Invoke(players.ToArray()));
             }
             catch (Exception e)
             {

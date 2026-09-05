@@ -110,6 +110,27 @@ namespace DiscordRelayKit.Tests
         }
 
         [UnityTest]
+        public IEnumerator GetLinkedPlayersReturnsAnEmptyListOnAFreshServer()
+        {
+            yield return WaitForServerHealthy();
+
+            DiscordRelay.Connect(BaseUrl, "linked-players-test-player");
+            yield return WaitUntilOrFail(() => DiscordRelay.IsConnected, 5f, "Unity client never connected");
+
+            LinkedPlayer[] result = null;
+            string receivedError = null;
+            DiscordRelay.GetLinkedPlayers(
+                players => result = players,
+                err => receivedError = err
+            );
+
+            yield return WaitUntilOrFail(() => result != null || receivedError != null, 5f, "GetLinkedPlayers never completed");
+
+            Assert.IsNull(receivedError, $"GetLinkedPlayers reported an error: {receivedError}");
+            Assert.AreEqual(0, result.Length);
+        }
+
+        [UnityTest]
         public IEnumerator UnityClientReceivesMessageFromExternalPeer()
         {
             yield return WaitForServerHealthy();

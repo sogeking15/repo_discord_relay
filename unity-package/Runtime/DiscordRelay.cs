@@ -44,6 +44,13 @@ namespace DiscordRelayKit
             socket.RequestLink(onAuthUrlReceived, onError);
         }
 
+        public static void GetLinkedPlayers(Action<LinkedPlayer[]> onResult, Action<string> onError = null)
+        {
+            if (socket == null)
+                throw new InvalidOperationException("DiscordRelay.Connect() must be called before GetLinkedPlayers().");
+            socket.GetLinkedPlayers(onResult, onError);
+        }
+
         static void HandleMessage(RelayMessage msg)
         {
             if (msg.Kind == "link.complete")
