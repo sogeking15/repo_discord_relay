@@ -4,6 +4,7 @@ const http = require("http");
 const { attachRelay, deliverToPlayer, setDiscordBridge } = require("./relay");
 const { createDiscordBridge } = require("./discordBridge");
 const discordOAuth = require("./discordOAuth");
+const linkStore = require("./linkStore");
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -45,6 +46,10 @@ app.get("/link/callback", async (req, res) => {
     console.error("[link] OAuth callback error:", err.message);
     res.status(400).send(`<h1>Link failed</h1><p>${err.message}</p>`);
   }
+});
+
+app.get("/players/linked", (_req, res) => {
+  res.json({ players: linkStore.listLinkedPlayers() });
 });
 
 app.post("/shutdown", (req, res) => {

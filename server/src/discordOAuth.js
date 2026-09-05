@@ -84,7 +84,7 @@ async function handleOAuthCallback(code, state) {
     console.warn(`[discordOAuth] could not add ${userData.username} to guild:`, err.message);
   }
 
-  linkStore.link(pending.playerId, userData.id);
+  linkStore.link(pending.playerId, userData.id, userData.username);
 
   return { playerId: pending.playerId, discordUserId: userData.id, username: userData.username };
 }
