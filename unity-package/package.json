@@ -5,6 +5,19 @@
   "description": "Async Discord messaging for Unity games: send a message to a player and get notified when they reply, even if their game is closed.",
   "unity": "6000.0",
   "dependencies": {
-    "com.unity.nuget.newtonsoft-json": "3.2.1"
-  }
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.ugui": "2.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Basic Usage",
+      "description": "Connect, link a Discord account, send and receive a message.",
+      "path": "Samples~/BasicUsage"
+    },
+    {
+      "displayName": "Chat UI",
+      "description": "A runtime-built UI: pick a linked player, type a message, send, and see replies come in.",
+      "path": "Samples~/ChatUI"
+    }
+  ]
 }
