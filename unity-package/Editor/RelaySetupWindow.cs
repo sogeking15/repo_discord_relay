@@ -65,8 +65,8 @@ namespace DiscordRelayKit.Editor
             var running = false;
             try
             {
-                using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(800) };
-                var response = await client.GetAsync($"http://localhost:{port}/health");
+                using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(1500) };
+                var response = await client.GetAsync($"http://127.0.0.1:{port}/health");
                 running = response.IsSuccessStatusCode;
             }
             catch
@@ -210,6 +210,10 @@ namespace DiscordRelayKit.Editor
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
+            lastHealthCheck = EditorApplication.timeSinceStartup;
+            healthCheckInFlight = true;
+            _ = CheckHealthAsync();
+
             // Deliberately not held onto beyond this call - the process is meant
             // to outlive the editor (and survive domain reloads), so Stop works
             // via /shutdown instead of a held Process handle. Log streaming above
@@ -226,7 +230,7 @@ namespace DiscordRelayKit.Editor
             try
             {
                 using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
-                await client.PostAsync($"http://localhost:{port}/shutdown", null);
+                await client.PostAsync($"http://127.0.0.1:{port}/shutdown", null);
             }
             catch
             {
