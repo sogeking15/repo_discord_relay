@@ -20,6 +20,7 @@ namespace DiscordRelayKit.Samples
         [SerializeField] Text logText;
         [SerializeField] Button sendButton;
         [SerializeField] Button refreshButton;
+        [SerializeField] Button linkButton;
 
         string selectedPlayerId;
         readonly List<GameObject> playerRows = new List<GameObject>();
@@ -28,18 +29,21 @@ namespace DiscordRelayKit.Samples
         {
             sendButton.onClick.AddListener(OnSendClicked);
             refreshButton.onClick.AddListener(RefreshPlayerList);
+            linkButton.onClick.AddListener(LinkDiscordAccount);
         }
 
         void OnEnable()
         {
             DiscordRelay.Connected += HandleConnected;
             DiscordRelay.OnMessageReceived += HandleMessageReceived;
+            DiscordRelay.OnLinked += HandleLinked;
         }
 
         void OnDisable()
         {
             DiscordRelay.Connected -= HandleConnected;
             DiscordRelay.OnMessageReceived -= HandleMessageReceived;
+            DiscordRelay.OnLinked -= HandleLinked;
         }
 
         void Start()
@@ -56,6 +60,30 @@ namespace DiscordRelayKit.Samples
         void HandleMessageReceived(RelayMessage msg)
         {
             AppendLog(msg.FromPlayerId, ExtractText(msg.Payload));
+        }
+
+        void HandleLinked(string discordUserId)
+        {
+            AppendLog("system", $"linked - Discord user {discordUserId}");
+            RefreshPlayerList();
+        }
+
+        public void LinkDiscordAccount()
+        {
+            AppendLog("system", "requesting a Discord link...");
+            DiscordRelay.RequestLink(
+                authUrl =>
+                {
+                    if (this == null) return;
+                    AppendLog("system", "opening Discord in your browser - authorize there to finish linking");
+                    Application.OpenURL(authUrl);
+                },
+                error =>
+                {
+                    if (this == null) return;
+                    AppendLog("system", $"link request failed: {error}");
+                }
+            );
         }
 
         public void RefreshPlayerList()
