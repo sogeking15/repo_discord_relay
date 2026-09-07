@@ -25,7 +25,7 @@ function flushQueue(playerId, ws) {
 // link.complete is protocol bookkeeping (the OAuth callback already sends its
 // own welcome DM) - notifying about it here too would be a redundant, useless
 // DM ("New message from system, open the game to see it").
-async function notifyViaDiscordIfOffline(toPlayerId, msg) {
+async function notifyViaDiscord(toPlayerId, msg) {
   if (!discordBridge || msg.kind === "link.complete") return;
 
   const discordUserId = linkStore.getDiscordUserId(toPlayerId);
@@ -35,13 +35,17 @@ async function notifyViaDiscordIfOffline(toPlayerId, msg) {
 
   try {
     await discordBridge.sendDM(discordUserId, text);
-    console.log(`[relay] notified ${toPlayerId} via DM (offline)`);
+    console.log(`[relay] notified ${toPlayerId} via DM`);
   } catch (err) {
     console.warn(`[relay] could not DM ${toPlayerId} (${discordUserId}):`, err.message);
   }
 }
 
-function deliverToPlayer(toPlayerId, fromPlayerId, kind, payload) {
+// forceDiscord: notify via Discord even if the recipient is currently
+// connected over WS. Off by default so a real game in active use isn't
+// double-notified for every routine message - callers opt in for anything
+// that should reach the player regardless of whether they're online.
+function deliverToPlayer(toPlayerId, fromPlayerId, kind, payload, { forceDiscord = false } = {}) {
   const msg = {
     messageId: randomUUID(),
     fromPlayerId,
@@ -54,11 +58,16 @@ function deliverToPlayer(toPlayerId, fromPlayerId, kind, payload) {
   queues.get(toPlayerId).push(msg);
 
   const target = connections.get(toPlayerId);
-  if (target && target.readyState === target.OPEN) {
+  const isOnline = Boolean(target && target.readyState === target.OPEN);
+
+  if (isOnline) {
     send(target, { type: "message.deliver", ...msg });
-  } else {
-    notifyViaDiscordIfOffline(toPlayerId, msg);
   }
+
+  if (!isOnline || forceDiscord) {
+    notifyViaDiscord(toPlayerId, msg);
+  }
+
   return msg;
 }
 
@@ -87,7 +96,9 @@ function attachRelay(httpServer) {
         case "message.send": {
           if (!ws.playerId) return send(ws, { type: "error", message: "identify first" });
           if (!data.toPlayerId) return send(ws, { type: "error", message: "toPlayerId required" });
-          deliverToPlayer(data.toPlayerId, ws.playerId, data.kind, data.payload);
+          deliverToPlayer(data.toPlayerId, ws.playerId, data.kind, data.payload, {
+            forceDiscord: Boolean(data.forceDiscord),
+          });
           break;
         }
 

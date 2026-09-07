@@ -129,7 +129,12 @@ namespace DiscordRelayKit.Samples
             var text = messageInput.text;
             if (string.IsNullOrEmpty(text)) return;
 
-            DiscordRelay.Send(selectedPlayerId, "chat", JsonForText(text));
+            // forceDiscord: true - this demo's whole point is showing the message
+            // reach the player's Discord DMs. Selecting yourself in this single-
+            // window demo means you're always "online" from the server's point of
+            // view, so without this the normal (correct, for a real game)
+            // online-skips-DM behavior would make Send look like it does nothing.
+            DiscordRelay.Send(selectedPlayerId, "chat", JsonForText(text), forceDiscord: true);
             AppendLog("me", text);
             messageInput.text = "";
         }

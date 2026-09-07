@@ -109,7 +109,7 @@ namespace DiscordRelayKit
             }
         }
 
-        public void SendMessage(string toPlayerId, string kind, string payloadJson)
+        public void SendMessage(string toPlayerId, string kind, string payloadJson, bool forceDiscord)
         {
             JToken payload = string.IsNullOrEmpty(payloadJson) ? null : JToken.Parse(payloadJson);
             _ = SendRaw(new JObject
@@ -118,6 +118,7 @@ namespace DiscordRelayKit
                 ["toPlayerId"] = toPlayerId,
                 ["kind"] = kind,
                 ["payload"] = payload,
+                ["forceDiscord"] = forceDiscord,
             });
         }
 

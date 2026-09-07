@@ -27,11 +27,16 @@ namespace DiscordRelayKit
             socket.Connect();
         }
 
-        public static void Send(string toPlayerId, string kind, string payloadJson = null)
+        // forceDiscord: notify via Discord even if the recipient is currently
+        // connected (in addition to the normal in-app delivery) - off by
+        // default so routine messages during active play don't double-notify
+        // someone who's already in the game. Turn it on for anything that
+        // should reach the player regardless of whether they're online.
+        public static void Send(string toPlayerId, string kind, string payloadJson = null, bool forceDiscord = false)
         {
             if (socket == null)
                 throw new InvalidOperationException("DiscordRelay.Connect() must be called before Send().");
-            socket.SendMessage(toPlayerId, kind, payloadJson);
+            socket.SendMessage(toPlayerId, kind, payloadJson, forceDiscord);
         }
 
         // Returns a Discord OAuth2 URL for the caller to open (e.g. Application.OpenURL) -
